@@ -1,0 +1,10 @@
+{
+  "name": "fb-stealth",
+  "version": "0.2.8",
+  "description": "Chrome MV3 extension for Facebook privacy controls.",
+  "private": true,
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test tests/*.test.js"
+  }
+}

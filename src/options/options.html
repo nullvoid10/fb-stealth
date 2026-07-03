@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FB Stealth Options</title>
+    <link rel="stylesheet" href="options.css">
+  </head>
+  <body>
+    <main class="page">
+      <header>
+        <h1>FB Stealth</h1>
+        <p>Facebook and Messenger privacy controls.</p>
+      </header>
+
+      <section class="panel">
+        <label class="row">
+          <span>
+            <strong>Block seen/read receipts</strong>
+            <small>Stops your browser from sending Messenger read receipts.</small>
+          </span>
+          <input id="blockSeen" type="checkbox">
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Block story seen</strong>
+            <small>Stops Facebook story seen-state updates through GraphQL only. May affect story viewer stability.</small>
+          </span>
+          <input id="blockStorySeen" type="checkbox">
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Block typing indicators</strong>
+            <small>Stops your browser from sending typing status to other people.</small>
+          </span>
+          <input id="blockTyping" type="checkbox">
+        </label>
+
+        <label class="row">
+          <span>
+            <strong>Debug mode</strong>
+            <small>Enables sanitized console and export diagnostics without storing message content.</small>
+          </span>
+          <input id="debugMode" type="checkbox">
+        </label>
+      </section>
+
+      <section class="panel counters" aria-label="Protection stats">
+        <div class="counters-header">
+          <div>
+            <strong>Protection stats</strong>
+            <span id="lastBlockedText">Last blocked: Never</span>
+          </div>
+          <button id="resetCounters" type="button">Reset counters</button>
+        </div>
+        <div class="counters-grid">
+          <span></span>
+          <span>Today</span>
+          <span>Since reset</span>
+          <span>Messenger seen</span>
+          <strong id="todayMessengerSeenCount">0</strong>
+          <strong id="sinceMessengerSeenCount">0</strong>
+          <span>Story seen</span>
+          <strong id="todayStorySeenCount">0</strong>
+          <strong id="sinceStorySeenCount">0</strong>
+          <span>Typing</span>
+          <strong id="todayTypingCount">0</strong>
+          <strong id="sinceTypingCount">0</strong>
+          <span>Total</span>
+          <strong id="todayTotalCount">0</strong>
+          <strong id="sinceTotalCount">0</strong>
+        </div>
+      </section>
+
+      <p id="saveStatus" class="status" role="status"></p>
+    </main>
+    <script src="../shared/counters.js"></script>
+    <script src="options.js"></script>
+  </body>
+</html>

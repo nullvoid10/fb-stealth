@@ -1,0 +1,4 @@
+_metadata/
+*.pem
+*.crx
+node_modules/

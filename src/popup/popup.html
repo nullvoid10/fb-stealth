@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>FB Stealth</title>
+    <link rel="stylesheet" href="popup.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header class="header">
+        <div>
+          <h1>FB Stealth</h1>
+          <p id="tabStatus">Checking tab...</p>
+        </div>
+        <button id="optionsButton" class="settings-button" type="button" title="Open settings" aria-label="Open settings">Settings</button>
+      </header>
+
+      <section class="controls" aria-label="Privacy controls">
+        <label class="toggle-row">
+          <span>
+            <strong>Block seen</strong>
+            <small>Messenger read receipts</small>
+          </span>
+          <input id="blockSeen" type="checkbox">
+        </label>
+
+        <label class="toggle-row">
+          <span>
+            <strong>Block story seen</strong>
+            <small>Facebook stories, experimental</small>
+          </span>
+          <input id="blockStorySeen" type="checkbox">
+        </label>
+
+        <label class="toggle-row">
+          <span>
+            <strong>Block typing</strong>
+            <small>Stop sending typing status</small>
+          </span>
+          <input id="blockTyping" type="checkbox">
+        </label>
+
+        <label class="toggle-row pause">
+          <span>
+            <strong>Pause this tab</strong>
+            <small>Temporary allow</small>
+          </span>
+          <input id="tabPaused" type="checkbox">
+        </label>
+      </section>
+
+      <section class="stats-panel" aria-label="Protection stats">
+        <div class="stats-header">
+          <div>
+            <strong>Protection stats</strong>
+            <small id="lastBlockedText">Last blocked: Never</small>
+          </div>
+          <button id="resetCounters" type="button">Reset</button>
+        </div>
+        <div class="stats-grid">
+          <span></span>
+          <span>Today</span>
+          <span>Since reset</span>
+          <span>Messenger seen</span>
+          <strong id="todayMessengerSeenCount">0</strong>
+          <strong id="sinceMessengerSeenCount">0</strong>
+          <span>Story seen</span>
+          <strong id="todayStorySeenCount">0</strong>
+          <strong id="sinceStorySeenCount">0</strong>
+          <span>Typing</span>
+          <strong id="todayTypingCount">0</strong>
+          <strong id="sinceTypingCount">0</strong>
+          <span>Total</span>
+          <strong id="todayTotalCount">0</strong>
+          <strong id="sinceTotalCount">0</strong>
+        </div>
+        <p id="counterStatus" class="counter-status" role="status"></p>
+      </section>
+
+      <label class="debug-toggle">
+        <input id="debugMode" type="checkbox">
+        <span>Debug mode</span>
+      </label>
+    </main>
+    <script src="../shared/counters.js"></script>
+    <script src="popup.js"></script>
+  </body>
+</html>
