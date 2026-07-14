@@ -13,7 +13,9 @@ Plain JavaScript Chrome Manifest V3 extension for best-effort Facebook and Messe
 
 Changing the seen/read-receipt setting reloads Facebook automatically so Facebook rebuilds its in-memory thread state. Typing changes apply without a reload.
 
-Facebook story seen blocking is separate from Messenger seen blocking. It only blocks the GraphQL story seen-state mutation because blocking realtime or worker story traffic can freeze Facebook. Leave it off unless you are actively testing stories.
+Facebook story seen blocking is separate from Messenger seen blocking. It blocks exact Story seen-state operations through GraphQL and worker commands while leaving broad worker traffic alone. Leave it off unless you are actively testing stories.
+
+Blocked QoS 1 MQTT privacy publishes receive a local acknowledgement instead of being sent to Facebook. This keeps Messenger's delivery queue moving without leaking the receipt. QoS 2 privacy publishes remain allowed because their multi-stage handshake cannot be safely simulated.
 
 FB Stealth is unofficial and not affiliated with Meta, Facebook, or Messenger. See [DISCLAIMER.md](DISCLAIMER.md).
 

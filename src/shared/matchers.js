@@ -51,10 +51,13 @@
     /\/mercury_read/i
   ];
 
-  const STORY_RECEIPT_PAYLOAD_PATTERNS = [
+  const STORY_RECEIPT_OPERATION_PATTERNS = [
     /\bstoriesUpdateSeenStateMutation\b/i,
     /\bCometStoriesMarkSeen\w*\b/,
-    /\bStoriesMarkStorySeen\w*\b/,
+    /\bStoriesMarkStorySeen\w*\b/
+  ];
+
+  const STORY_RECEIPT_PAYLOAD_PATTERNS = [
     /\bmark(?:_|-)?stor(?:y|ies)(?:_|-)?(?:seen|viewed)\b/i,
     /\bstor(?:y|ies)(?:_|-)?(?:seen|view)(?:_|-)?receipt\b/i,
     /\bstory(?:_|-)?viewer(?:_|-)?seen\b/i
@@ -200,7 +203,9 @@
     const haystack = `${url}\n${topic}\n${body}\n${decodeLoose(url)}\n${decodeLoose(topic)}\n${decodeLoose(body)}`;
     const isMessageSend = hasAny(MESSAGE_SEND_PATTERNS, haystack);
     const isStoryPublish = hasAny(STORY_PUBLISH_PAYLOAD_PATTERNS, haystack);
-    const isStoryReceipt = isGraphqlUrl(url) && hasAny(STORY_RECEIPT_PAYLOAD_PATTERNS, haystack);
+    const isStoryReceipt =
+      hasAny(STORY_RECEIPT_OPERATION_PATTERNS, haystack) ||
+      (isGraphqlUrl(url) && hasAny(STORY_RECEIPT_PAYLOAD_PATTERNS, haystack));
     const isCriticalReceiptFlow = isMessageSend || isStoryPublish || hasAny(CRITICAL_MESSAGE_FLOW_PATTERNS, haystack);
 
     if (hasAny(TYPING_URL_PATTERNS, url) || hasAny(TYPING_PAYLOAD_PATTERNS, haystack)) {
@@ -245,7 +250,9 @@
       return result;
     }
 
-    if (result.type === "receipt" && isStorySurface(input && input.url)) {
+    const isStoryReceipt = result.reason === "story-seen-receipt";
+
+    if (result.type === "receipt" && !isStoryReceipt && isStorySurface(input && input.url)) {
       return {
         ...result,
         blocked: false,
@@ -253,7 +260,7 @@
       };
     }
 
-    if (result.reason === "story-seen-receipt" && !(settings && settings.blockStorySeen)) {
+    if (isStoryReceipt && !(settings && settings.blockStorySeen)) {
       return {
         ...result,
         blocked: false,
@@ -269,7 +276,7 @@
       };
     }
 
-    if (result.type === "receipt" && !(settings && settings.blockSeen)) {
+    if (result.type === "receipt" && !isStoryReceipt && !(settings && settings.blockSeen)) {
       return {
         ...result,
         blocked: false,

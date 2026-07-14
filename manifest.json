@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "FB Stealth",
   "description": "Block Facebook message seen receipts, story seen updates, and typing indicators.",
-  "version": "0.2.8",
+  "version": "0.2.10",
   "minimum_chrome_version": "102",
   "permissions": [
     "storage"
@@ -41,6 +41,7 @@
       ],
       "js": [
         "src/shared/matchers.js",
+        "src/shared/mqtt.js",
         "src/content/main-world-guard.js"
       ],
       "run_at": "document_start",

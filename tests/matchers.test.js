@@ -121,6 +121,51 @@ test("blocks MQTT read receipt payloads", () => {
   assert.equal(result.type, "receipt");
 });
 
+test("classifies acknowledged MQTT privacy frames for transport-level handling", () => {
+  for (const [body, expectedType] of [
+    ["{\"type\":\"read_receipt\"}", "receipt"],
+    ["send_typing_indicators thread_fbid", "typing"]
+  ]) {
+    const result = shouldBlock(
+      {
+        url: "wss://edge-chat.messenger.com/chat",
+        method: "WS",
+        packetType: 3,
+        qos: 1,
+        body
+      },
+      {
+        blockSeen: true,
+        blockStorySeen: true,
+        blockTyping: true
+      }
+    );
+
+    assert.equal(result.blocked, true);
+    assert.equal(result.type, expectedType);
+  }
+});
+
+test("continues blocking unacknowledged MQTT read receipts", () => {
+  const result = shouldBlock(
+    {
+      url: "wss://edge-chat.messenger.com/chat",
+      method: "WS",
+      packetType: 3,
+      qos: 0,
+      body: "{\"type\":\"read_receipt\"}"
+    },
+    {
+      blockSeen: true,
+      blockStorySeen: true,
+      blockTyping: true
+    }
+  );
+
+  assert.equal(result.blocked, true);
+  assert.equal(result.reason, "read-receipt");
+});
+
 test("preserves realtime read receipt payloads when bundled with thread flow tokens", () => {
   const result = shouldBlock(
     {
@@ -195,6 +240,66 @@ test("does not block story seen payloads when story blocking is disabled", () =>
   assert.equal(result.blocked, false);
   assert.equal(result.type, "receipt");
   assert.equal(result.reason, "story-seen-disabled");
+});
+
+test("blocks story seen independently from Messenger seen", () => {
+  const result = shouldBlock(
+    {
+      url: "https://www.facebook.com/api/graphql/",
+      method: "POST",
+      body: "fb_api_req_friendly_name=storiesUpdateSeenStateMutation&variables=%7B%7D"
+    },
+    {
+      blockSeen: false,
+      blockStorySeen: true,
+      blockTyping: true
+    }
+  );
+
+  assert.equal(result.blocked, true);
+  assert.equal(result.reason, "story-seen-receipt");
+});
+
+test("blocks exact story seen commands sent through a worker port", () => {
+  const result = shouldBlock(
+    {
+      url: "fbpg://MessagePort.postMessage",
+      method: "POSTMESSAGE",
+      body: {
+        operationName: "storiesUpdateSeenStateMutation",
+        variables: { bucket_id: "redacted", story_id: "redacted" }
+      }
+    },
+    {
+      blockSeen: true,
+      blockStorySeen: true,
+      blockTyping: true
+    }
+  );
+
+  assert.equal(result.blocked, true);
+  assert.equal(result.reason, "story-seen-receipt");
+});
+
+test("does not block generic worker story metadata", () => {
+  const result = shouldBlock(
+    {
+      url: "fbpg://MessagePort.postMessage",
+      method: "POSTMESSAGE",
+      body: {
+        task: "hydrateStoryViewer",
+        story_view_receipt: false
+      }
+    },
+    {
+      blockSeen: true,
+      blockStorySeen: true,
+      blockTyping: true
+    }
+  );
+
+  assert.equal(result.blocked, false);
+  assert.equal(result.reason, "no-match");
 });
 
 test("does not block realtime story seen packets", () => {

@@ -6,17 +6,19 @@
 
   const DIAGNOSTICS_ENABLED = true;
   const DIAGNOSTIC_LOG_LIMIT = 1000;
-  const BUILD_VERSION = "0.2.8";
+  const BUILD_VERSION = "0.2.10";
   const BRIDGE_SOURCE = "FBPG_BRIDGE";
   const MAIN_SOURCE = "FBPG_MAIN_GUARD";
   const MAX_DECODE_BYTES = 16 * 1024;
   const matchers = window.FBPG_MATCHERS;
+  const mqttHelpers = window.FBPG_MQTT;
   const handshakeNonce = randomId();
   const postWindowMessage = window.postMessage.bind(window);
   const nativeSetTimeout = window.setTimeout.bind(window);
   const debugLog = console.log.bind(console);
   let diagnosticLogCount = 0;
   let bridgePort = null;
+  let settingsReady = false;
   const queuedBlockedEvents = [];
   const state = {
     settings: {
@@ -44,7 +46,14 @@
       };
     }
 
-    return matchers.shouldBlock(details, state.settings);
+    const effectiveSettings = settingsReady
+      ? state.settings
+      : {
+          ...state.settings,
+          blockStorySeen: true
+        };
+
+    return matchers.shouldBlock(details, effectiveSettings);
   }
 
   function reportBlocked(result, transport) {
@@ -139,6 +148,7 @@
         ...state.settings,
         ...(message.settings || {})
       };
+      settingsReady = true;
       state.paused = Boolean(message.paused);
       diagnosticLog("settings", {
         settings: publicSettingsSnapshot(),
@@ -336,24 +346,71 @@
 
     function guardedSend(socket, args) {
       const data = args[0];
-      const mqtt = inspectMqttPublish(data);
+      const mqtt = mqttHelpers
+        ? mqttHelpers.inspectPublish(data, MAX_DECODE_BYTES)
+        : {
+            packetType: null,
+            qos: null,
+            packetIdentifier: null,
+            byteLength: 0,
+            topic: "",
+            text: ""
+          };
       const details = {
         url: socket.url || "websocket",
         method: "WS",
         topic: mqtt.topic,
         body: mqtt.text || data,
         packetType: mqtt.packetType,
+        qos: mqtt.qos,
         byteLength: mqtt.byteLength
       };
       const result = shouldBlockRequest(details);
-      diagnosticRequest("websocket", details, result);
+      const puback =
+        result.blocked && mqtt.packetType === 3 && mqtt.qos === 1 && mqttHelpers
+          ? mqttHelpers.buildPuback(mqtt.packetIdentifier)
+          : null;
+      const effectiveResult =
+        result.blocked && mqtt.packetType === 3 && mqtt.qos > 0 && !puback
+          ? {
+              ...result,
+              blocked: false,
+              reason: "mqtt-ack-unavailable-preserved"
+            }
+          : {
+              ...result,
+              localMqttAck: Boolean(puback)
+            };
+      diagnosticRequest("websocket", details, effectiveResult);
 
-      if (result.blocked) {
-        reportBlocked(result, "websocket");
+      if (effectiveResult.blocked) {
+        if (puback) {
+          dispatchMqttPuback(socket, puback, args);
+        }
+        reportBlocked(effectiveResult, "websocket");
         return undefined;
       }
 
       return originalSend.apply(socket, args);
+    }
+
+    // Dropping a QoS 1 publish without an ACK eventually blocks later Messenger sends.
+    function dispatchMqttPuback(socket, puback, originalArgs) {
+      nativeSetTimeout(() => {
+        try {
+          const data =
+            socket.binaryType === "blob" && typeof Blob !== "undefined"
+              ? new Blob([puback], { type: "application/octet-stream" })
+              : puback.buffer.slice(puback.byteOffset, puback.byteOffset + puback.byteLength);
+          socket.dispatchEvent(new MessageEvent("message", { data }));
+        } catch (_error) {
+          try {
+            originalSend.apply(socket, originalArgs);
+          } catch (_sendError) {
+            // Messenger will reconnect a closed socket through its native error path.
+          }
+        }
+      }, 0);
     }
 
     function guardedWebSocketSend(data) {
@@ -426,7 +483,7 @@
       };
       const result = shouldBlockRequest(details);
       const effectiveResult =
-        result.type === "typing"
+        result.type === "typing" || result.reason === "story-seen-receipt"
           ? result
           : {
               ...result,
@@ -444,108 +501,6 @@
     };
 
     proto.__fbpgTypingPostMessagePatched = true;
-  }
-
-  function inspectMqttPublish(data) {
-    const bytes = toBytes(data);
-    if (!bytes || bytes.length < 4) {
-      return {
-        packetType: null,
-        byteLength: bytes ? bytes.length : 0,
-        topic: "",
-        text: typeof data === "string" ? data : ""
-      };
-    }
-
-    const packetType = bytes[0] >> 4;
-    if (packetType !== 3) {
-      return {
-        packetType,
-        byteLength: bytes.length,
-        topic: "",
-        text: decodeBytes(bytes)
-      };
-    }
-
-    let offset = 1;
-    let multiplier = 1;
-    let remainingLength = 0;
-    let encodedByte = 0;
-
-    do {
-      if (offset >= bytes.length) {
-        return {
-          packetType,
-          byteLength: bytes.length,
-          topic: "",
-          text: decodeBytes(bytes)
-        };
-      }
-      encodedByte = bytes[offset++];
-      remainingLength += (encodedByte & 127) * multiplier;
-      multiplier *= 128;
-    } while ((encodedByte & 128) !== 0);
-
-    if (offset + 2 > bytes.length) {
-      return {
-        packetType,
-        byteLength: bytes.length,
-        topic: "",
-        text: decodeBytes(bytes)
-      };
-    }
-
-    const topicLength = (bytes[offset] << 8) + bytes[offset + 1];
-    offset += 2;
-
-    if (offset + topicLength > bytes.length) {
-      return {
-        packetType,
-        byteLength: bytes.length,
-        topic: "",
-        text: decodeBytes(bytes)
-      };
-    }
-
-    const topic = decodeBytes(bytes.slice(offset, offset + topicLength));
-    const payloadStart = offset + topicLength;
-    const payloadEnd = Math.min(bytes.length, payloadStart + Math.max(0, remainingLength - 2 - topicLength));
-    const text = `${topic}\n${decodeBytes(bytes.slice(payloadStart, payloadEnd))}`;
-
-    return {
-      packetType,
-      byteLength: bytes.length,
-      topic,
-      text
-    };
-  }
-
-  function toBytes(data) {
-    if (typeof data === "string") {
-      return new TextEncoder().encode(data);
-    }
-
-    if (data instanceof ArrayBuffer) {
-      return new Uint8Array(data);
-    }
-
-    if (ArrayBuffer.isView(data)) {
-      return new Uint8Array(data.buffer, data.byteOffset, data.byteLength);
-    }
-
-    return null;
-  }
-
-  function decodeBytes(bytes) {
-    if (!bytes || !bytes.length) {
-      return "";
-    }
-
-    try {
-      return new TextDecoder("utf-8", { fatal: false }).decode(bytes.slice(0, MAX_DECODE_BYTES));
-    } catch (_error) {
-      return "";
-    }
   }
 
   function diagnosticRequest(transport, details, result) {
@@ -570,7 +525,9 @@
       method: details.method || "",
       urlPath: summary.urlPath,
       packetType: details.packetType == null ? "" : details.packetType,
+      qos: details.qos == null ? "" : details.qos,
       byteLength: details.byteLength || "",
+      localMqttAck: Boolean(result.localMqttAck),
       blocked: result.blocked,
       type: result.type,
       reason: result.reason,
